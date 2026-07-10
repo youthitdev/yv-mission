@@ -16,7 +16,7 @@ const EMPTY_PROJECT = {
 };
 
 export default function AdminPage() {
-  const [tab, setTab] = useState('projects'); // 'projects' | 'missions'
+  const [tab, setTab] = useState('projects'); // 'projects' | 'missions' | 'participants'
   const [projects, setProjects] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -57,6 +57,12 @@ export default function AdminPage() {
         >
           미션 관리
         </button>
+        <button
+          onClick={() => setTab('participants')}
+          className={`px-3 py-2 rounded-full text-sm ${tab === 'participants' ? 'bg-mission-accent text-black' : 'bg-mission-card text-white/70'}`}
+        >
+          참여자 기록
+        </button>
       </div>
 
       {tab === 'projects' && (
@@ -72,6 +78,11 @@ export default function AdminPage() {
         <MissionAdmin project={selectedProject} categories={categories} />
       )}
       {tab === 'missions' && !selectedProject && (
+        <p className="px-4 text-white/50 text-sm">먼저 기수를 생성/선택하세요.</p>
+      )}
+
+      {tab === 'participants' && selectedProject && <ParticipantsAdmin project={selectedProject} />}
+      {tab === 'participants' && !selectedProject && (
         <p className="px-4 text-white/50 text-sm">먼저 기수를 생성/선택하세요.</p>
       )}
     </div>
@@ -390,6 +401,99 @@ function MissionAdmin({ project, categories }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+const STATUS_LABEL = {
+  active: '진행 중',
+  completed: '완료',
+  passed: '패스함',
+  expired: '기간만료',
+};
+
+function ParticipantsAdmin({ project }) {
+  const [members, setMembers] = useState([]);
+  const [progressByUser, setProgressByUser] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      supabase
+        .from('project_members')
+        .select('*, profile:profiles(nickname, phone)')
+        .eq('project_id', project.id)
+        .order('joined_at', { ascending: true }),
+      supabase
+        .from('user_mission_progress')
+        .select('*, mission:missions(no, title, category:mission_categories(label, code))')
+        .eq('project_id', project.id)
+        .order('assigned_at', { ascending: true }),
+    ]).then(([membersRes, progressRes]) => {
+      if (cancelled) return;
+      setMembers(membersRes.data || []);
+      const grouped = {};
+      (progressRes.data || []).forEach((row) => {
+        if (!grouped[row.user_id]) grouped[row.user_id] = [];
+        grouped[row.user_id].push(row);
+      });
+      setProgressByUser(grouped);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  if (loading) return <p className="px-4 text-white/50 text-sm">불러오는 중...</p>;
+
+  return (
+    <div className="px-4 flex flex-col gap-4">
+      <p className="text-sm text-white/50">
+        {project.name} · 참여자 {members.length}명
+      </p>
+
+      {members.length === 0 && (
+        <p className="text-white/50 text-sm">아직 참여한 사람이 없습니다.</p>
+      )}
+
+      {members.map((m) => {
+        const missions = progressByUser[m.user_id] || [];
+        return (
+          <div key={m.id} className="bg-mission-card rounded-xl p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold">{m.profile?.nickname || '이름없음'}</p>
+                <p className="text-xs text-white/50">
+                  참여일 {new Date(m.joined_at).toLocaleDateString('ko-KR')} · 미션패스 사용{' '}
+                  {m.pass_used_cnt}/{project.pass_cnt}
+                </p>
+              </div>
+              <span className="text-xs text-white/50">
+                {missions.length}/{project.max_mission}개 진행
+              </span>
+            </div>
+
+            {missions.length > 0 && (
+              <div className="flex flex-col gap-1 border-t border-white/10 pt-2">
+                {missions.map((row) => (
+                  <div key={row.id} className="flex items-center justify-between text-sm">
+                    <span className="text-white/70">
+                      Mission {row.mission?.no} · {row.mission?.title}
+                      {row.mission?.category ? ` (${row.mission.category.label})` : ''}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-mission-dark text-white/60 shrink-0 ml-2">
+                      {STATUS_LABEL[row.status] || row.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
