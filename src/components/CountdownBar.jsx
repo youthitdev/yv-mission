@@ -23,17 +23,20 @@ export default function CountdownBar({ expiresAt, nickname, onExpire }) {
 
   if (!expiresAt) {
     return (
-      <div className="w-full rounded-xl bg-mission-card px-4 py-3 text-center text-sm text-white/70">
-        새로운 미션을 뽑을 수 있어요!
+      <div className="w-full rounded-xl bg-mission-card px-4 py-5 text-center">
+        <p className="text-lg font-semibold text-white/80">새로운 미션을 뽑을 수 있어요!</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full rounded-xl bg-mission-card px-4 py-3 text-center text-sm">
-      <span className="text-white/70">{name}님의 미션 수행 시간이 </span>
-      <span className="font-semibold text-mission-accent">{formatRemaining(remaining)}</span>
-      <span className="text-white/70"> 남았습니다.</span>
+    <div className="w-full rounded-xl bg-mission-card px-4 py-5 text-center">
+      <p className="text-xl font-bold mb-1">{name}님</p>
+      <p className="text-lg leading-snug">
+        <span className="text-white/80">미션 수행 시간이 </span>
+        <span className="font-bold text-mission-accent">{formatRemaining(remaining)}</span>
+        <span className="text-white/80"> 남았습니다.</span>
+      </p>
     </div>
   );
 }
