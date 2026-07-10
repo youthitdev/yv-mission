@@ -415,11 +415,11 @@ function ParticipantsAdmin({ project }) {
   const [members, setMembers] = useState([]);
   const [progressByUser, setProgressByUser] = useState({});
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = () => {
     setLoading(true);
-    Promise.all([
+    return Promise.all([
       supabase
         .from('project_members')
         .select('*, profile:profiles(nickname, phone)')
@@ -431,7 +431,6 @@ function ParticipantsAdmin({ project }) {
         .eq('project_id', project.id)
         .order('assigned_at', { ascending: true }),
     ]).then(([membersRes, progressRes]) => {
-      if (cancelled) return;
       setMembers(membersRes.data || []);
       const grouped = {};
       (progressRes.data || []).forEach((row) => {
@@ -441,10 +440,26 @@ function ParticipantsAdmin({ project }) {
       setProgressByUser(grouped);
       setLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
+
+  const handleDelete = async (row) => {
+    if (!confirm(`Mission ${row.mission?.no} (${row.mission?.title}) 기록을 삭제할까요?\n삭제하면 이 유저는 해당 미션을 다시 뽑을 수 있게 됩니다.`)) {
+      return;
+    }
+    setDeletingId(row.id);
+    const { error } = await supabase.from('user_mission_progress').delete().eq('id', row.id);
+    setDeletingId(null);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    load();
+  };
 
   if (loading) return <p className="px-4 text-white/50 text-sm">불러오는 중...</p>;
 
@@ -478,14 +493,23 @@ function ParticipantsAdmin({ project }) {
             {missions.length > 0 && (
               <div className="flex flex-col gap-1 border-t border-white/10 pt-2">
                 {missions.map((row) => (
-                  <div key={row.id} className="flex items-center justify-between text-sm">
+                  <div key={row.id} className="flex items-center justify-between text-sm gap-2">
                     <span className="text-white/70">
                       Mission {row.mission?.no} · {row.mission?.title}
                       {row.mission?.category ? ` (${row.mission.category.label})` : ''}
                     </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-mission-dark text-white/60 shrink-0 ml-2">
-                      {STATUS_LABEL[row.status] || row.status}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-mission-dark text-white/60">
+                        {STATUS_LABEL[row.status] || row.status}
+                      </span>
+                      <button
+                        onClick={() => handleDelete(row)}
+                        disabled={deletingId === row.id}
+                        className="text-xs text-red-400 underline disabled:opacity-40"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

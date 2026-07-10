@@ -481,6 +481,10 @@ create policy "ump_select_own_or_admin" on user_mission_progress
     user_id = auth.uid() or is_admin()
   );
 
+-- user_mission_progress: admin만 삭제 가능 (참여자 기록 초기화/오작 수정용)
+create policy "ump_delete_admin" on user_mission_progress
+  for delete using (is_admin());
+
 -- =====================================================================
 -- 참고: 실제 뽑기/패스/완료 로직은 RPC(draw_mission/use_mission_pass/
 -- complete_mission)를 통해서만 수행되며, 이 함수들은 security definer로
