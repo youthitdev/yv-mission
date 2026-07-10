@@ -18,7 +18,12 @@ export default function Header() {
 
   return (
     <header className="flex items-center justify-between px-4 py-3">
-      <h1 className="font-bold text-lg">발견미션</h1>
+      <h1
+        className="font-bold text-lg cursor-pointer"
+        onClick={() => navigate('/')}
+      >
+        Be My Self
+      </h1>
       <button onClick={() => setOpen(true)} className="text-2xl leading-none px-2" aria-label="메뉴">
         ☰
       </button>
