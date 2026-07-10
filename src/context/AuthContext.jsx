@@ -43,7 +43,11 @@ export function AuthProvider({ children }) {
   const loginWithKakao = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'kakao',
-      options: { redirectTo: window.location.origin },
+      options: {
+        redirectTo: window.location.origin,
+        // 이메일 동의항목은 비즈 앱 전환이 필요해서 요청하지 않음 (닉네임/프로필 이미지만 요청)
+        scopes: 'profile_nickname profile_image',
+      },
     });
   };
 
