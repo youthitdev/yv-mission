@@ -1,27 +1,28 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import CountdownBar from '../components/CountdownBar';
 import MissionGrid from '../components/MissionGrid';
 import MissionDetailModal from '../components/MissionDetailModal';
+import InfoDialog from '../components/InfoDialog';
 import { useMission } from '../context/MissionContext';
+import { formatRemaining, msUntil } from '../utils/time';
 
 export default function HomePage() {
-  const { currentProject, currentProgress, remainingPass, drawMission, usePass, completeMission, error } =
-    useMission();
+  const { currentProject, currentProgress, remainingPass, usePass, completeMission, error } = useMission();
+  const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
-  const [drawing, setDrawing] = useState(false);
+  const [lockedMessage, setLockedMessage] = useState('');
 
-  const canDraw = !!currentProject && !currentProject.is_closed;
+  const hasActiveMission = !!currentProgress && msUntil(currentProgress.expires_at) > 0;
 
-  const handleDraw = async () => {
-    setDrawing(true);
-    try {
-      await drawMission();
-    } catch (e) {
-      alert(e.message || '미션 뽑기에 실패했습니다.');
-    } finally {
-      setDrawing(false);
+  const handleCategoryClick = (code) => {
+    if (hasActiveMission) {
+      const remaining = formatRemaining(msUntil(currentProgress.expires_at));
+      setLockedMessage(`다음 미션을 선택하려면 ${remaining} 남았습니다.`);
+      return;
     }
+    navigate(`/missions?category=${code}&mode=draw`);
   };
 
   return (
@@ -38,10 +39,8 @@ export default function HomePage() {
 
           <MissionGrid
             progress={currentProgress}
-            canDraw={canDraw}
-            drawing={drawing}
-            onDraw={handleDraw}
             onOpenMission={() => setModalOpen(true)}
+            onCategoryClick={handleCategoryClick}
           />
 
           {error && <p className="text-center text-red-400 text-sm px-4">{error}</p>}
@@ -57,6 +56,8 @@ export default function HomePage() {
           onComplete={completeMission}
         />
       )}
+
+      {lockedMessage && <InfoDialog message={lockedMessage} onClose={() => setLockedMessage('')} />}
     </div>
   );
 }

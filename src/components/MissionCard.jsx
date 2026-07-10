@@ -2,19 +2,14 @@ import { useState } from 'react';
 import FlipCard from './FlipCard';
 import MissionFrontArt from './cardArt/MissionFrontArt';
 
-export default function MissionCard({ progress, canDraw, onOpenDetail, onDraw, drawing }) {
+export default function MissionCard({ progress, onOpenDetail }) {
   const [flipped, setFlipped] = useState(false);
 
   if (!progress) {
     return (
-      <button
-        onClick={onDraw}
-        disabled={!canDraw || drawing}
-        className="col-span-1 row-span-1 aspect-square rounded-xl bg-mission-card border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 disabled:opacity-40"
-      >
-        <span className="text-3xl">🎲</span>
-        <span className="text-sm font-medium">{drawing ? '뽑는 중...' : '미션 뽑기'}</span>
-      </button>
+      <div className="col-span-1 row-span-1 aspect-square rounded-xl bg-mission-card border border-dashed border-white/20 flex flex-col items-center justify-center gap-2 px-3 text-center">
+        <span className="text-sm text-white/60">아래 카테고리를 선택해서{'\n'}미션을 뽑아보세요</span>
+      </div>
     );
   }
 
@@ -37,7 +32,7 @@ export default function MissionCard({ progress, canDraw, onOpenDetail, onDraw, d
             }}
             className="mt-1 text-xs text-mission-accent underline self-start"
           >
-            미션 완료/패스 하기
+            자세히 보기
           </button>
         </div>
       }

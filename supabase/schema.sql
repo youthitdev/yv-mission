@@ -308,6 +308,87 @@ end;
 $$;
 
 -- =====================================================================
+-- 8-1. RPC: draw_mission_in_category - 카테고리 지정 뽑기
+--    홈에서 카테고리 타일 클릭 -> 카드 목록에서 카드 선택 -> 그 카테고리
+--    안에서만 랜덤 배정 (미션선택 화면이 곧 뽑기 화면이 되는 흐름)
+-- =====================================================================
+create or replace function draw_mission_in_category(p_project_id uuid, p_category_code text)
+returns user_mission_progress
+language plpgsql
+security definer
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_project projects;
+  v_active_count int;
+  v_drawn_count int;
+  v_mission missions;
+  v_result user_mission_progress;
+begin
+  if v_user_id is null then
+    raise exception '로그인이 필요합니다.';
+  end if;
+
+  select * into v_project from projects where id = p_project_id;
+  if v_project is null then
+    raise exception '존재하지 않는 프로젝트입니다.';
+  end if;
+  if v_project.is_closed then
+    raise exception '마감된 기수입니다.';
+  end if;
+  if now()::date < v_project.start_date or now()::date > v_project.end_date then
+    raise exception '진행 기간이 아닙니다.';
+  end if;
+
+  insert into project_members (project_id, user_id)
+  values (p_project_id, v_user_id)
+  on conflict (project_id, user_id) do nothing;
+
+  select count(*) into v_active_count
+  from user_mission_progress
+  where project_id = p_project_id and user_id = v_user_id
+    and status = 'active' and expires_at > now();
+  if v_active_count > 0 then
+    raise exception '이미 진행 중인 미션이 있습니다.';
+  end if;
+
+  select count(*) into v_drawn_count
+  from user_mission_progress
+  where project_id = p_project_id and user_id = v_user_id;
+  if v_drawn_count >= v_project.max_mission then
+    raise exception '모든 미션을 완료했습니다.';
+  end if;
+
+  update user_mission_progress
+  set status = 'expired'
+  where project_id = p_project_id and user_id = v_user_id
+    and status = 'active' and expires_at <= now();
+
+  select m.* into v_mission
+  from missions m
+  join mission_categories mc on mc.id = m.category_id
+  where m.project_id = p_project_id and m.is_active = true
+    and mc.code = p_category_code
+    and m.id not in (
+      select mission_id from user_mission_progress
+      where project_id = p_project_id and user_id = v_user_id
+    )
+  order by random()
+  limit 1;
+
+  if v_mission is null then
+    raise exception '이 카테고리에는 더 이상 뽑을 수 있는 미션이 없습니다.';
+  end if;
+
+  insert into user_mission_progress (project_id, user_id, mission_id, status, assigned_at, expires_at)
+  values (p_project_id, v_user_id, v_mission.id, 'active', now(), now() + make_interval(secs => v_project.interval_seconds))
+  returning * into v_result;
+
+  return v_result;
+end;
+$$;
+
+-- =====================================================================
 -- 9. RPC: complete_mission - 현재 미션 완료 처리
 -- =====================================================================
 create or replace function complete_mission(p_progress_id uuid)

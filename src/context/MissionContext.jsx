@@ -94,6 +94,20 @@ export function MissionProvider({ children }) {
     return data;
   };
 
+  const drawMissionInCategory = async (categoryCode) => {
+    setError(null);
+    const { data, error: err } = await supabase.rpc('draw_mission_in_category', {
+      p_project_id: currentProjectId,
+      p_category_code: categoryCode,
+    });
+    if (err) {
+      setError(err.message);
+      throw err;
+    }
+    await loadProgress();
+    return data;
+  };
+
   const usePass = async () => {
     setError(null);
     const { data, error: err } = await supabase.rpc('use_mission_pass', {
@@ -135,6 +149,7 @@ export function MissionProvider({ children }) {
         loading,
         error,
         drawMission,
+        drawMissionInCategory,
         usePass,
         completeMission,
         reload: loadProgress,
