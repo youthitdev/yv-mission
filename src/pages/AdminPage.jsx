@@ -16,7 +16,7 @@ const EMPTY_PROJECT = {
 };
 
 export default function AdminPage() {
-  const [tab, setTab] = useState('projects'); // 'projects' | 'missions'
+  const [tab, setTab] = useState('projects'); // 'projects' | 'participants' | 'missions'
   const [projects, setProjects] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -52,6 +52,12 @@ export default function AdminPage() {
           기수 관리
         </button>
         <button
+          onClick={() => setTab('participants')}
+          className={`px-3 py-2 rounded-full text-sm ${tab === 'participants' ? 'bg-mission-accent text-black' : 'bg-mission-card text-white/70'}`}
+        >
+          참가자 관리
+        </button>
+        <button
           onClick={() => setTab('missions')}
           className={`px-3 py-2 rounded-full text-sm ${tab === 'missions' ? 'bg-mission-accent text-black' : 'bg-mission-card text-white/70'}`}
         >
@@ -59,23 +65,34 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {tab === 'projects' && (
-        <div className="flex flex-col gap-6">
-          <ProjectAdmin
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            onSelect={setSelectedProjectId}
-            onChanged={loadProjects}
-          />
-          {selectedProject && (
-            <div className="border-t border-white/10 pt-4">
-              <h3 className="px-4 text-sm font-semibold text-white/70 mb-3">
-                {selectedProject.name} · 참여자 기록
-              </h3>
-              <ParticipantsAdmin project={selectedProject} />
-            </div>
-          )}
+      {selectedProject && tab !== 'projects' && (
+        <div className="px-4 mb-4">
+          <select
+            value={selectedProjectId || ''}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            className="w-full bg-mission-card rounded-lg px-3 py-2 border border-white/10 text-sm"
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         </div>
+      )}
+
+      {tab === 'projects' && (
+        <ProjectAdmin
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onSelect={setSelectedProjectId}
+          onChanged={loadProjects}
+        />
+      )}
+
+      {tab === 'participants' && selectedProject && <ParticipantsAdmin project={selectedProject} />}
+      {tab === 'participants' && !selectedProject && (
+        <p className="px-4 text-white/50 text-sm">먼저 기수를 생성/선택하세요.</p>
       )}
 
       {tab === 'missions' && selectedProject && (
@@ -431,10 +448,14 @@ const MEMBER_FILTERS = [
 function ParticipantsAdmin({ project }) {
   const [members, setMembers] = useState([]);
   const [progressByUser, setProgressByUser] = useState({});
+  const [allProfiles, setAllProfiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [approvingId, setApprovingId] = useState(null);
+  const [addingId, setAddingId] = useState(null);
+  const [removingId, setRemovingId] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -449,7 +470,8 @@ function ParticipantsAdmin({ project }) {
         .select('*, mission:missions(no, title, category:mission_categories(label, code))')
         .eq('project_id', project.id)
         .order('assigned_at', { ascending: true }),
-    ]).then(([membersRes, progressRes]) => {
+      supabase.from('profiles').select('id, nickname, phone').order('nickname', { ascending: true }),
+    ]).then(([membersRes, progressRes, profilesRes]) => {
       setMembers(membersRes.data || []);
       const grouped = {};
       (progressRes.data || []).forEach((row) => {
@@ -457,6 +479,7 @@ function ParticipantsAdmin({ project }) {
         grouped[row.user_id].push(row);
       });
       setProgressByUser(grouped);
+      setAllProfiles(profilesRes.data || []);
       setLoading(false);
     });
   };
@@ -494,119 +517,187 @@ function ParticipantsAdmin({ project }) {
     load();
   };
 
+  const handleAdd = async (profile) => {
+    setAddingId(profile.id);
+    const { error } = await supabase.rpc('admin_add_member', {
+      p_project_id: project.id,
+      p_user_id: profile.id,
+      p_status: 'pending',
+    });
+    setAddingId(null);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    load();
+  };
+
+  const handleRemove = async (member) => {
+    if (!confirm(`${member.profile?.nickname || '이름없음'}님을 이 기수 참가자에서 제거할까요?`)) return;
+    setRemovingId(member.id);
+    const { error } = await supabase.from('project_members').delete().eq('id', member.id);
+    setRemovingId(null);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    load();
+  };
+
   if (loading) return <p className="px-4 text-white/50 text-sm">불러오는 중...</p>;
+
+  const memberUserIds = new Set(members.map((m) => m.user_id));
+  const candidates = allProfiles.filter(
+    (p) => !memberUserIds.has(p.id) && (!search || (p.nickname || '').includes(search))
+  );
 
   const filteredMembers = filter === 'all' ? members : members.filter((m) => m.status === filter);
   const pendingCount = members.filter((m) => m.status === 'pending').length;
 
   return (
-    <div className="px-4 flex flex-col gap-4">
-      <p className="text-sm text-white/50">
-        {project.name} · 참여자 {members.length}명
-        {pendingCount > 0 ? ` · 승인 대기 ${pendingCount}명` : ''}
-      </p>
-
-      <div className="flex gap-2 overflow-x-auto">
-        {MEMBER_FILTERS.map((f) => (
-          <button
-            key={f.code}
-            onClick={() => setFilter(f.code)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs ${
-              filter === f.code ? 'bg-mission-accent text-black' : 'bg-mission-dark text-white/60'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+    <div className="px-4 flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <p className="font-semibold">참가자 추가</p>
+        <input
+          placeholder="닉네임으로 검색"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="bg-mission-dark rounded-lg px-3 py-2 border border-white/10 text-sm"
+        />
+        <div className="flex flex-col gap-2 max-h-56 overflow-y-auto">
+          {candidates.length === 0 && (
+            <p className="text-white/40 text-xs">추가할 수 있는 유저가 없습니다.</p>
+          )}
+          {candidates.map((p) => (
+            <div key={p.id} className="flex items-center justify-between bg-mission-card rounded-lg px-3 py-2">
+              <span className="text-sm">{p.nickname || '이름없음'}</span>
+              <button
+                onClick={() => handleAdd(p)}
+                disabled={addingId === p.id}
+                className="text-xs px-3 py-1.5 rounded-full bg-mission-accent text-black font-semibold disabled:opacity-40"
+              >
+                이 기수에 추가
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {filteredMembers.length === 0 && (
-        <p className="text-white/50 text-sm">해당하는 참여자가 없습니다.</p>
-      )}
+      <div className="flex flex-col gap-4 border-t border-white/10 pt-4">
+        <p className="text-sm text-white/50">
+          {project.name} · 참여자 {members.length}명
+          {pendingCount > 0 ? ` · 승인 대기 ${pendingCount}명` : ''}
+        </p>
 
-      {filteredMembers.map((m) => {
-        const missions = progressByUser[m.user_id] || [];
-        return (
-          <div key={m.id} className="bg-mission-card rounded-xl p-4 flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold">{m.profile?.nickname || '이름없음'}</p>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full ${
-                      MEMBER_STATUS_STYLE[m.status] || 'bg-white/10 text-white/60'
-                    }`}
-                  >
-                    {MEMBER_STATUS_LABEL[m.status] || m.status}
-                  </span>
-                </div>
-                <p className="text-xs text-white/50 mt-1">
-                  참여일 {new Date(m.joined_at).toLocaleDateString('ko-KR')} · 미션패스 사용{' '}
-                  {m.pass_used_cnt}/{project.pass_cnt}
-                </p>
-              </div>
-              <span className="text-xs text-white/50 shrink-0">
-                {missions.length}/{project.max_mission}개 진행
-              </span>
-            </div>
+        <div className="flex gap-2 overflow-x-auto">
+          {MEMBER_FILTERS.map((f) => (
+            <button
+              key={f.code}
+              onClick={() => setFilter(f.code)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs ${
+                filter === f.code ? 'bg-mission-accent text-black' : 'bg-mission-dark text-white/60'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
 
-            <div className="flex gap-2">
-              {m.status !== 'approved' && (
-                <button
-                  onClick={() => handleApprove(m, 'approved')}
-                  disabled={approvingId === m.id}
-                  className="flex-1 py-1.5 rounded-lg bg-mission-accent text-black text-xs font-semibold disabled:opacity-40"
-                >
-                  승인
-                </button>
-              )}
-              {m.status !== 'rejected' && (
-                <button
-                  onClick={() => handleApprove(m, 'rejected')}
-                  disabled={approvingId === m.id}
-                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-xs disabled:opacity-40"
-                >
-                  거절
-                </button>
-              )}
-              {m.status !== 'pending' && (
-                <button
-                  onClick={() => handleApprove(m, 'pending')}
-                  disabled={approvingId === m.id}
-                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-xs disabled:opacity-40"
-                >
-                  대기로 되돌리기
-                </button>
-              )}
-            </div>
+        {filteredMembers.length === 0 && (
+          <p className="text-white/50 text-sm">해당하는 참여자가 없습니다.</p>
+        )}
 
-            {missions.length > 0 && (
-              <div className="flex flex-col gap-1 border-t border-white/10 pt-2">
-                {missions.map((row) => (
-                  <div key={row.id} className="flex items-center justify-between text-sm gap-2">
-                    <span className="text-white/70">
-                      Mission {row.mission?.no} · {row.mission?.title}
-                      {row.mission?.category ? ` (${row.mission.category.label})` : ''}
+        {filteredMembers.map((m) => {
+          const missions = progressByUser[m.user_id] || [];
+          return (
+            <div key={m.id} className="bg-mission-card rounded-xl p-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{m.profile?.nickname || '이름없음'}</p>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full ${
+                        MEMBER_STATUS_STYLE[m.status] || 'bg-white/10 text-white/60'
+                      }`}
+                    >
+                      {MEMBER_STATUS_LABEL[m.status] || m.status}
                     </span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-mission-dark text-white/60">
-                        {STATUS_LABEL[row.status] || row.status}
-                      </span>
-                      <button
-                        onClick={() => handleDelete(row)}
-                        disabled={deletingId === row.id}
-                        className="text-xs text-red-400 underline disabled:opacity-40"
-                      >
-                        삭제
-                      </button>
-                    </div>
                   </div>
-                ))}
+                  <p className="text-xs text-white/50 mt-1">
+                    참여일 {new Date(m.joined_at).toLocaleDateString('ko-KR')} · 미션패스 사용{' '}
+                    {m.pass_used_cnt}/{project.pass_cnt}
+                  </p>
+                </div>
+                <span className="text-xs text-white/50 shrink-0">
+                  {missions.length}/{project.max_mission}개 진행
+                </span>
               </div>
-            )}
-          </div>
-        );
-      })}
+
+              <div className="flex gap-2 flex-wrap">
+                {m.status !== 'approved' && (
+                  <button
+                    onClick={() => handleApprove(m, 'approved')}
+                    disabled={approvingId === m.id}
+                    className="flex-1 py-1.5 rounded-lg bg-mission-accent text-black text-xs font-semibold disabled:opacity-40"
+                  >
+                    승인
+                  </button>
+                )}
+                {m.status !== 'rejected' && (
+                  <button
+                    onClick={() => handleApprove(m, 'rejected')}
+                    disabled={approvingId === m.id}
+                    className="flex-1 py-1.5 rounded-lg bg-white/10 text-xs disabled:opacity-40"
+                  >
+                    거절
+                  </button>
+                )}
+                {m.status !== 'pending' && (
+                  <button
+                    onClick={() => handleApprove(m, 'pending')}
+                    disabled={approvingId === m.id}
+                    className="flex-1 py-1.5 rounded-lg bg-white/10 text-xs disabled:opacity-40"
+                  >
+                    대기로 되돌리기
+                  </button>
+                )}
+                <button
+                  onClick={() => handleRemove(m)}
+                  disabled={removingId === m.id}
+                  className="flex-1 py-1.5 rounded-lg bg-red-500/20 text-red-300 text-xs disabled:opacity-40"
+                >
+                  참가자 제거
+                </button>
+              </div>
+
+              {missions.length > 0 && (
+                <div className="flex flex-col gap-1 border-t border-white/10 pt-2">
+                  {missions.map((row) => (
+                    <div key={row.id} className="flex items-center justify-between text-sm gap-2">
+                      <span className="text-white/70">
+                        Mission {row.mission?.no} · {row.mission?.title}
+                        {row.mission?.category ? ` (${row.mission.category.label})` : ''}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-mission-dark text-white/60">
+                          {STATUS_LABEL[row.status] || row.status}
+                        </span>
+                        <button
+                          onClick={() => handleDelete(row)}
+                          disabled={deletingId === row.id}
+                          className="text-xs text-red-400 underline disabled:opacity-40"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

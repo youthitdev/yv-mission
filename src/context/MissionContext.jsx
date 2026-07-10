@@ -51,10 +51,8 @@ export function MissionProvider({ children }) {
     setLoading(true);
     setError(null);
 
-    // 아직 참여 신청(project_members)이 없으면 pending 상태로 자동 신청
-    // (있으면 그대로 두고, 승인 여부는 admin이 별도로 처리)
-    await supabase.rpc('join_project', { p_project_id: currentProjectId });
-
+    // 참가자 등록은 관리자가 "참가자 관리" 탭에서 직접 추가해야만 생성됩니다.
+    // (로그인/방문만으로는 어떤 기수에도 자동 등록되지 않음)
     const [{ data: progressRows }, { data: memberRow }] = await Promise.all([
       supabase
         .from('user_mission_progress')

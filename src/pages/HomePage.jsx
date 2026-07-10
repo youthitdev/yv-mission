@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { formatRemaining, msUntil } from '../utils/time';
 
 const STATUS_MESSAGE = {
+  none: '아직 이 기수의 참가자로 등록되지 않았어요. 관리자가 등록 후 승인하면 미션을 시작할 수 있어요.',
   pending: '관리자 승인 후 미션을 시작할 수 있어요. 승인될 때까지 잠시만 기다려주세요.',
   rejected: '이번 기수 참여가 승인되지 않았습니다. 담당자에게 문의해주세요.',
 };
@@ -55,9 +56,9 @@ export default function HomePage() {
             <CountdownBar expiresAt={currentProgress?.expires_at} nickname={profile?.nickname} onExpire={reload} />
           </div>
 
-          {!isApproved && memberStatus && (
+          {!isApproved && (
             <div className="mx-4 rounded-xl border border-mission-accent/50 bg-mission-card px-4 py-4 text-center text-sm text-white/80">
-              {STATUS_MESSAGE[memberStatus] || '관리자 승인이 필요합니다.'}
+              {STATUS_MESSAGE[memberStatus || 'none'] || '관리자 승인이 필요합니다.'}
             </div>
           )}
 

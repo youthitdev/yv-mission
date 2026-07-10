@@ -472,6 +472,36 @@ end;
 $$;
 
 -- =====================================================================
+-- 8-3. RPC: admin_add_member - 관리자가 참가자를 기수에 직접 추가
+--    (참가자 관리 탭에서 사용. 유저는 로그인만으로 자동 등록되지 않음)
+-- =====================================================================
+create or replace function admin_add_member(p_project_id uuid, p_user_id uuid, p_status text default 'pending')
+returns project_members
+language plpgsql
+security definer
+as $$
+declare
+  v_result project_members;
+begin
+  if not is_admin() then
+    raise exception '권한이 없습니다.';
+  end if;
+  if p_status not in ('pending', 'approved', 'rejected') then
+    raise exception '잘못된 상태값입니다.';
+  end if;
+
+  insert into project_members (project_id, user_id, status, approved_at)
+  values (p_project_id, p_user_id, p_status, case when p_status = 'approved' then now() else null end)
+  on conflict (project_id, user_id) do update
+    set status = excluded.status,
+        approved_at = case when excluded.status = 'approved' then now() else project_members.approved_at end
+  returning * into v_result;
+
+  return v_result;
+end;
+$$;
+
+-- =====================================================================
 -- 9. RPC: complete_mission - 현재 미션 완료 처리
 -- =====================================================================
 create or replace function complete_mission(p_progress_id uuid)
@@ -566,6 +596,10 @@ create policy "ump_select_own_or_admin" on user_mission_progress
 
 -- user_mission_progress: admin만 삭제 가능 (참여자 기록 초기화/오작 수정용)
 create policy "ump_delete_admin" on user_mission_progress
+  for delete using (is_admin());
+
+-- project_members: admin만 참가자를 기수에서 완전히 제거 가능
+create policy "members_delete_admin" on project_members
   for delete using (is_admin());
 
 -- =====================================================================
