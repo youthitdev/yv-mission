@@ -2,13 +2,7 @@ import { useEffect, useState } from 'react';
 import { getCategoryMeta } from '../utils/categories';
 import { formatRemaining, msUntil } from '../utils/time';
 
-export default function MissionDetailModal({
-  progress,
-  remainingPass,
-  onClose,
-  onUsePass,
-  onComplete,
-}) {
+export default function MissionDetailModal({ progress, remainingPass, onClose, onUsePass }) {
   const [busy, setBusy] = useState(false);
   const [confirmPass, setConfirmPass] = useState(false);
   const [remaining, setRemaining] = useState(() => msUntil(progress?.expires_at));
@@ -37,18 +31,6 @@ export default function MissionDetailModal({
     }
   };
 
-  const handleComplete = async () => {
-    setBusy(true);
-    try {
-      await onComplete(progress.id);
-      onClose();
-    } catch (e) {
-      alert(e.message || '완료 처리에 실패했습니다.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center px-0 sm:px-6">
       <div className="w-full sm:max-w-sm bg-mission-card rounded-t-2xl sm:rounded-2xl p-6 flex flex-col">
@@ -70,14 +52,6 @@ export default function MissionDetailModal({
         <p className="text-white/70 text-sm leading-relaxed mb-6">{mission?.description}</p>
 
         <div className="flex flex-col items-center gap-3 mt-auto">
-          <button
-            onClick={handleComplete}
-            disabled={busy}
-            className="w-full py-3 rounded-xl bg-mission-accent text-black font-semibold disabled:opacity-50"
-          >
-            미션 완료하기
-          </button>
-
           {!confirmPass ? (
             <button
               onClick={() => setConfirmPass(true)}
