@@ -341,11 +341,21 @@ alter table mission_categories enable row level security;
 alter table missions enable row level security;
 alter table user_mission_progress enable row level security;
 
+-- 관리자 여부를 안전하게 확인하는 함수 (RLS 우회, 재귀 방지)
+create or replace function is_admin()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select coalesce((select p.is_admin from profiles p where p.id = auth.uid()), false);
+$$;
+
 -- profiles: 본인 것만 읽기/수정, admin은 전체 읽기
 create policy "profiles_select_own_or_admin" on profiles
   for select using (
-    id = auth.uid()
-    or exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin)
+    id = auth.uid() or is_admin()
   );
 create policy "profiles_update_own" on profiles
   for update using (id = auth.uid());
@@ -353,12 +363,11 @@ create policy "profiles_update_own" on profiles
 -- projects: 공개된 것은 누구나 조회, admin은 전체 관리
 create policy "projects_select_public_or_admin" on projects
   for select using (
-    is_public = true
-    or exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin)
+    is_public = true or is_admin()
   );
 create policy "projects_admin_all" on projects
-  for all using (exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin))
-  with check (exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin));
+  for all using (is_admin())
+  with check (is_admin());
 
 -- mission_categories: 전체 공개
 create policy "categories_select_all" on mission_categories
@@ -371,24 +380,22 @@ create policy "missions_select_member_or_admin" on missions
       select 1 from project_members m
       where m.project_id = missions.project_id and m.user_id = auth.uid()
     )
-    or exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin)
+    or is_admin()
   );
 create policy "missions_admin_all" on missions
-  for all using (exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin))
-  with check (exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin));
+  for all using (is_admin())
+  with check (is_admin());
 
 -- project_members: 본인 것만 + admin
 create policy "members_select_own_or_admin" on project_members
   for select using (
-    user_id = auth.uid()
-    or exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin)
+    user_id = auth.uid() or is_admin()
   );
 
 -- user_mission_progress: 본인 것만 + admin
 create policy "ump_select_own_or_admin" on user_mission_progress
   for select using (
-    user_id = auth.uid()
-    or exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin)
+    user_id = auth.uid() or is_admin()
   );
 
 -- =====================================================================

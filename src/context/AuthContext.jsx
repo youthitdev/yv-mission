@@ -47,6 +47,17 @@ export function AuthProvider({ children }) {
     });
   };
 
+  // 임시 테스트용 이메일 로그인 (카카오 연동 전까지만 사용, 이후 제거 예정)
+  const signUpWithEmail = async (email, password) => {
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+  };
+
+  const signInWithEmail = async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
   };
@@ -69,6 +80,8 @@ export function AuthProvider({ children }) {
         profile,
         loading,
         loginWithKakao,
+        signUpWithEmail,
+        signInWithEmail,
         logout,
         refreshProfile,
         isAdmin: !!profile?.is_admin,
