@@ -3,32 +3,48 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
 import FlipCard from '../components/FlipCard';
 import MissionFrontArt from '../components/cardArt/MissionFrontArt';
+import MissionDetailModal from '../components/MissionDetailModal';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useMission } from '../context/MissionContext';
 import { getCategoryMeta } from '../utils/categories';
 
 const ALL_CATEGORIES = ['alone', 'together', 'move', 'new', 'observe'];
+const STATUS_LABEL = {
+  active: '진행 중',
+  completed: '완료',
+  passed: '패스함',
+  expired: '기간만료',
+};
 
 export default function MissionSelectPage() {
   const { user } = useAuth();
-  const { currentProjectId, currentProject, drawMissionInCategory, reload } = useMission();
+  const {
+    currentProjectId,
+    currentProject,
+    drawMissionInCategory,
+    remainingPass,
+    usePass,
+    completeMission,
+    reload,
+  } = useMission();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeCategory = searchParams.get('category') || ALL_CATEGORIES[0];
   const drawMode = searchParams.get('mode') === 'draw';
 
   const [missions, setMissions] = useState([]);
-  const [revealedIds, setRevealedIds] = useState(new Set()); // 내가 뽑아본 적 있는 미션 id들
+  const [progressByMissionId, setProgressByMissionId] = useState({}); // mission_id -> progress row
   const [flippedId, setFlippedId] = useState(null);
+  const [modalProgress, setModalProgress] = useState(null);
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(false);
   const [drawing, setDrawing] = useState(false);
 
-  useEffect(() => {
+  const loadData = () => {
     if (!currentProjectId || !user) return;
     setLoading(true);
-    Promise.all([
+    return Promise.all([
       supabase
         .from('missions')
         .select('*, category:mission_categories(*)')
@@ -36,14 +52,23 @@ export default function MissionSelectPage() {
         .eq('is_active', true),
       supabase
         .from('user_mission_progress')
-        .select('mission_id')
+        .select('*, mission:missions(*, category:mission_categories(*))')
         .eq('project_id', currentProjectId)
         .eq('user_id', user.id),
     ]).then(([missionsRes, progressRes]) => {
       setMissions(missionsRes.data || []);
-      setRevealedIds(new Set((progressRes.data || []).map((r) => r.mission_id)));
+      const map = {};
+      (progressRes.data || []).forEach((row) => {
+        map[row.mission_id] = row;
+      });
+      setProgressByMissionId(map);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProjectId, user]);
 
   useEffect(() => {
@@ -69,11 +94,17 @@ export default function MissionSelectPage() {
   };
 
   const handleBrowseClick = (mission) => {
-    if (!revealedIds.has(mission.id)) {
+    if (!progressByMissionId[mission.id]) {
       setToast('아직 뽑지 않은 미션입니다');
       return;
     }
     setFlippedId((cur) => (cur === mission.id ? null : mission.id));
+  };
+
+  const handleModalClose = () => {
+    setModalProgress(null);
+    loadData();
+    reload();
   };
 
   const categoryMeta = getCategoryMeta(activeCategory);
@@ -116,17 +147,23 @@ export default function MissionSelectPage() {
         {!loading && filtered.length === 0 && (
           <p className="text-white/50 text-sm col-span-2">이 카테고리에 등록된 미션이 없습니다.</p>
         )}
-        {filtered.map((m) =>
-          drawMode ? (
-            <button
-              key={m.id}
-              onClick={handleDrawClick}
-              disabled={drawing}
-              className="aspect-square rounded-xl overflow-hidden disabled:opacity-50"
-            >
-              <MissionFrontArt seed={m.no} />
-            </button>
-          ) : (
+        {filtered.map((m) => {
+          if (drawMode) {
+            return (
+              <button
+                key={m.id}
+                onClick={handleDrawClick}
+                disabled={drawing}
+                className="aspect-square rounded-xl overflow-hidden disabled:opacity-50"
+              >
+                <MissionFrontArt seed={m.no} />
+              </button>
+            );
+          }
+
+          const progress = progressByMissionId[m.id];
+
+          return (
             <FlipCard
               key={m.id}
               flipped={flippedId === m.id}
@@ -134,20 +171,48 @@ export default function MissionSelectPage() {
               front={<MissionFrontArt seed={m.no} />}
               back={
                 <div className="w-full h-full rounded-xl bg-mission-card border border-white/10 flex flex-col justify-center px-3 text-left gap-1">
-                  <span className="text-xs text-white/50">Mission {m.no}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-white/50">Mission {m.no}</span>
+                    {progress && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-mission-dark text-white/50">
+                        {STATUS_LABEL[progress.status] || progress.status}
+                      </span>
+                    )}
+                  </div>
                   <span className="font-semibold text-sm leading-snug line-clamp-3">{m.title}</span>
                   <span className="text-xs text-white/60 line-clamp-3">{m.description}</span>
+                  {progress?.status === 'active' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setModalProgress(progress);
+                      }}
+                      className="mt-1 text-xs text-mission-accent underline self-start"
+                    >
+                      미션 완료/패스 하기
+                    </button>
+                  )}
                 </div>
               }
             />
-          )
-        )}
+          );
+        })}
       </div>
 
       {toast && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-sm px-4 py-2 rounded-full">
           {toast}
         </div>
+      )}
+
+      {modalProgress && (
+        <MissionDetailModal
+          progress={modalProgress}
+          remainingPass={remainingPass}
+          onClose={handleModalClose}
+          onUsePass={usePass}
+          onComplete={completeMission}
+        />
       )}
     </div>
   );
