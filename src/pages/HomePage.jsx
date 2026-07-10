@@ -6,10 +6,12 @@ import MissionGrid from '../components/MissionGrid';
 import MissionDetailModal from '../components/MissionDetailModal';
 import InfoDialog from '../components/InfoDialog';
 import { useMission } from '../context/MissionContext';
+import { useAuth } from '../context/AuthContext';
 import { formatRemaining, msUntil } from '../utils/time';
 
 export default function HomePage() {
   const { currentProject, currentProgress, remainingPass, usePass, completeMission, error } = useMission();
+  const { profile } = useAuth();
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
   const [lockedMessage, setLockedMessage] = useState('');
@@ -34,7 +36,7 @@ export default function HomePage() {
       ) : (
         <div className="flex flex-col gap-4">
           <div className="px-4">
-            <CountdownBar expiresAt={currentProgress?.expires_at} />
+            <CountdownBar expiresAt={currentProgress?.expires_at} nickname={profile?.nickname} />
           </div>
 
           <MissionGrid
