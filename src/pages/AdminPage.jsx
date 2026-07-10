@@ -16,7 +16,7 @@ const EMPTY_PROJECT = {
 };
 
 export default function AdminPage() {
-  const [tab, setTab] = useState('projects'); // 'projects' | 'missions' | 'participants'
+  const [tab, setTab] = useState('projects'); // 'projects' | 'missions'
   const [projects, setProjects] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -57,32 +57,31 @@ export default function AdminPage() {
         >
           미션 관리
         </button>
-        <button
-          onClick={() => setTab('participants')}
-          className={`px-3 py-2 rounded-full text-sm ${tab === 'participants' ? 'bg-mission-accent text-black' : 'bg-mission-card text-white/70'}`}
-        >
-          참여자 기록
-        </button>
       </div>
 
       {tab === 'projects' && (
-        <ProjectAdmin
-          projects={projects}
-          selectedProjectId={selectedProjectId}
-          onSelect={setSelectedProjectId}
-          onChanged={loadProjects}
-        />
+        <div className="flex flex-col gap-6">
+          <ProjectAdmin
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onSelect={setSelectedProjectId}
+            onChanged={loadProjects}
+          />
+          {selectedProject && (
+            <div className="border-t border-white/10 pt-4">
+              <h3 className="px-4 text-sm font-semibold text-white/70 mb-3">
+                {selectedProject.name} · 참여자 기록
+              </h3>
+              <ParticipantsAdmin project={selectedProject} />
+            </div>
+          )}
+        </div>
       )}
 
       {tab === 'missions' && selectedProject && (
         <MissionAdmin project={selectedProject} categories={categories} />
       )}
       {tab === 'missions' && !selectedProject && (
-        <p className="px-4 text-white/50 text-sm">먼저 기수를 생성/선택하세요.</p>
-      )}
-
-      {tab === 'participants' && selectedProject && <ParticipantsAdmin project={selectedProject} />}
-      {tab === 'participants' && !selectedProject && (
         <p className="px-4 text-white/50 text-sm">먼저 기수를 생성/선택하세요.</p>
       )}
     </div>
