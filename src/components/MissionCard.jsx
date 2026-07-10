@@ -1,3 +1,5 @@
+import MissionRevealCard from './MissionRevealCard';
+
 export default function MissionCard({ progress, onOpenDetail }) {
   if (!progress) {
     return (
@@ -7,19 +9,9 @@ export default function MissionCard({ progress, onOpenDetail }) {
     );
   }
 
-  const mission = progress.mission;
-
   return (
-    <div className="aspect-square rounded-xl bg-mission-dark border border-white/10 flex flex-col justify-center px-4 text-left gap-1">
-      <span className="text-xs text-white/50">Now · Mission {mission?.no}</span>
-      <span className="font-semibold leading-snug line-clamp-2">{mission?.title}</span>
-      <span className="text-xs text-white/60 line-clamp-2">{mission?.description}</span>
-      <button
-        onClick={onOpenDetail}
-        className="mt-1 text-xs text-mission-accent underline self-start"
-      >
-        자세히 보기
-      </button>
+    <div className="aspect-square">
+      <MissionRevealCard mission={progress.mission} label="Now" onClick={onOpenDetail} />
     </div>
   );
 }

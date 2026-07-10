@@ -4,6 +4,7 @@ import Header from '../components/Header';
 import FlipCard from '../components/FlipCard';
 import MissionFrontArt from '../components/cardArt/MissionFrontArt';
 import MissionDetailModal from '../components/MissionDetailModal';
+import MissionRevealCard from '../components/MissionRevealCard';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { useMission } from '../context/MissionContext';
@@ -170,29 +171,17 @@ export default function MissionSelectPage() {
               onClick={() => handleBrowseClick(m)}
               front={<MissionFrontArt seed={m.no} />}
               back={
-                <div className="w-full h-full rounded-xl bg-mission-card border border-white/10 flex flex-col justify-center px-3 text-left gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-white/50">Mission {m.no}</span>
-                    {progress && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-mission-dark text-white/50">
-                        {STATUS_LABEL[progress.status] || progress.status}
-                      </span>
-                    )}
-                  </div>
-                  <span className="font-semibold text-sm leading-snug line-clamp-3">{m.title}</span>
-                  <span className="text-xs text-white/60 line-clamp-3">{m.description}</span>
-                  {progress?.status === 'active' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setModalProgress(progress);
-                      }}
-                      className="mt-1 text-xs text-mission-accent underline self-start"
-                    >
-                      미션 완료/패스 하기
-                    </button>
-                  )}
-                </div>
+                <MissionRevealCard
+                  mission={m}
+                  label="Mission"
+                  statusBadge={progress ? STATUS_LABEL[progress.status] || progress.status : null}
+                  onClick={(e) => {
+                    if (progress?.status === 'active') {
+                      e.stopPropagation();
+                      setModalProgress(progress);
+                    }
+                  }}
+                />
               }
             />
           );
