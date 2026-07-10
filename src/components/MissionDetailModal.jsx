@@ -34,7 +34,7 @@ export default function MissionDetailModal({ progress, remainingPass, onClose, o
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center px-0 sm:px-6">
-      <div className="relative w-full sm:max-w-sm bg-mission-card rounded-t-2xl sm:rounded-2xl overflow-hidden">
+      <div className="relative w-full sm:max-w-sm bg-mission-card rounded-t-2xl sm:rounded-2xl overflow-hidden mission-reveal-pop">
         <div className="absolute inset-0 opacity-20">
           <MissionFrontArt seed={mission?.no ?? 0} />
         </div>

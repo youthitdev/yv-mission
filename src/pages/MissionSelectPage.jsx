@@ -23,6 +23,7 @@ export default function MissionSelectPage() {
   const {
     currentProjectId,
     currentProject,
+    currentProgress,
     drawMissionInCategory,
     remainingPass,
     usePass,
@@ -41,6 +42,8 @@ export default function MissionSelectPage() {
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(false);
   const [drawing, setDrawing] = useState(false);
+  const [justDrawn, setJustDrawn] = useState(false);
+  const [revealProgress, setRevealProgress] = useState(null);
 
   const loadData = () => {
     if (!currentProjectId || !user) return;
@@ -78,6 +81,15 @@ export default function MissionSelectPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // 미션을 뽑은 직후: 최신 currentProgress가 반영되면 그걸로 결과 카드를 펼쳐서 보여줌
+  // (바로 홈으로 이동하지 않고, 사용자가 확인 후 닫아야 홈으로 이동)
+  useEffect(() => {
+    if (justDrawn && currentProgress) {
+      setRevealProgress(currentProgress);
+      setJustDrawn(false);
+    }
+  }, [justDrawn, currentProgress]);
+
   const filtered = missions
     .filter((m) => m.category?.code === activeCategory)
     .sort((a, b) => a.no - b.no);
@@ -87,9 +99,10 @@ export default function MissionSelectPage() {
     setDrawing(true);
     try {
       await drawMissionInCategory(activeCategory);
-      navigate('/');
+      setJustDrawn(true);
     } catch (e) {
       setToast(e.message || '뽑기에 실패했습니다.');
+    } finally {
       setDrawing(false);
     }
   };
@@ -106,6 +119,13 @@ export default function MissionSelectPage() {
     setModalProgress(null);
     loadData();
     reload();
+  };
+
+  const handleRevealClose = () => {
+    setRevealProgress(null);
+    loadData();
+    reload();
+    navigate('/');
   };
 
   const categoryMeta = getCategoryMeta(activeCategory);
@@ -201,6 +221,15 @@ export default function MissionSelectPage() {
           onClose={handleModalClose}
           onUsePass={usePass}
           onComplete={completeMission}
+        />
+      )}
+
+      {revealProgress && (
+        <MissionDetailModal
+          progress={revealProgress}
+          remainingPass={remainingPass}
+          onClose={handleRevealClose}
+          onUsePass={usePass}
         />
       )}
     </div>

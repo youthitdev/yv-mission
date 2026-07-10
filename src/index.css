@@ -37,3 +37,18 @@ body {
 .flip-card-back {
   transform: rotateY(180deg);
 }
+
+/* 미션 뽑기 결과 카드가 펼쳐지듯 나타나는 효과 */
+@keyframes reveal-pop {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.mission-reveal-pop {
+  animation: reveal-pop 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
