@@ -14,7 +14,7 @@ export default function MissionGrid({ progress, canDraw, drawing, onOpenMission,
         progress={progress}
         canDraw={canDraw}
         drawing={drawing}
-        onClick={onOpenMission}
+        onOpenDetail={onOpenMission}
         onDraw={onDraw}
       />
       {ALL_CATEGORIES.map((code) => (

@@ -373,10 +373,12 @@ create policy "projects_admin_all" on projects
 create policy "categories_select_all" on mission_categories
   for select using (true);
 
--- missions: 본문(정답 텍스트 자체)은 참여자 + admin만
+-- missions: 로그인한 유저는 공개된 기수의 미션을 볼 수 있음 (앞면 잠금 카드 표시를 위해)
+-- 실제 텍스트를 화면에 보여줄지는 프론트엔드에서 유저 본인이 뽑은 적 있는지로 다시 걸러줌
 create policy "missions_select_member_or_admin" on missions
   for select using (
-    exists (
+    exists (select 1 from projects p where p.id = missions.project_id and p.is_public = true)
+    or exists (
       select 1 from project_members m
       where m.project_id = missions.project_id and m.user_id = auth.uid()
     )

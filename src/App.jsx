@@ -21,10 +21,24 @@ function RequireAdmin({ children }) {
   return children;
 }
 
+function RedirectIfLoggedIn({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="min-h-screen flex items-center justify-center">불러오는 중...</div>;
+  if (user) return <Navigate to="/" replace />;
+  return children;
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/login"
+        element={
+          <RedirectIfLoggedIn>
+            <LoginPage />
+          </RedirectIfLoggedIn>
+        }
+      />
       <Route
         path="/"
         element={
