@@ -9,8 +9,23 @@ import { useMission } from '../context/MissionContext';
 import { useAuth } from '../context/AuthContext';
 import { formatRemaining, msUntil } from '../utils/time';
 
+const STATUS_MESSAGE = {
+  pending: '관리자 승인 후 미션을 시작할 수 있어요. 승인될 때까지 잠시만 기다려주세요.',
+  rejected: '이번 기수 참여가 승인되지 않았습니다. 담당자에게 문의해주세요.',
+};
+
 export default function HomePage() {
-  const { currentProject, currentProgress, remainingPass, usePass, completeMission, error, reload } = useMission();
+  const {
+    currentProject,
+    currentProgress,
+    remainingPass,
+    usePass,
+    completeMission,
+    error,
+    reload,
+    memberStatus,
+    isApproved,
+  } = useMission();
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
@@ -19,6 +34,7 @@ export default function HomePage() {
   const hasActiveMission = !!currentProgress && msUntil(currentProgress.expires_at) > 0;
 
   const handleCategoryClick = (code) => {
+    if (!isApproved) return;
     if (hasActiveMission) {
       const remaining = formatRemaining(msUntil(currentProgress.expires_at));
       setLockedMessage(`다음 미션을 선택하려면 ${remaining} 남았습니다.`);
@@ -39,11 +55,19 @@ export default function HomePage() {
             <CountdownBar expiresAt={currentProgress?.expires_at} nickname={profile?.nickname} onExpire={reload} />
           </div>
 
-          <MissionGrid
-            progress={currentProgress}
-            onOpenMission={() => setModalOpen(true)}
-            onCategoryClick={handleCategoryClick}
-          />
+          {!isApproved && memberStatus && (
+            <div className="mx-4 rounded-xl border border-mission-accent/50 bg-mission-card px-4 py-4 text-center text-sm text-white/80">
+              {STATUS_MESSAGE[memberStatus] || '관리자 승인이 필요합니다.'}
+            </div>
+          )}
+
+          <div className={!isApproved ? 'opacity-40 pointer-events-none select-none' : ''}>
+            <MissionGrid
+              progress={currentProgress}
+              onOpenMission={() => setModalOpen(true)}
+              onCategoryClick={handleCategoryClick}
+            />
+          </div>
 
           {error && <p className="text-center text-red-400 text-sm px-4">{error}</p>}
         </div>

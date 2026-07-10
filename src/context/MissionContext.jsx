@@ -12,7 +12,7 @@ export function MissionProvider({ children }) {
     () => localStorage.getItem('dm_current_project_id') || null
   );
   const [currentProgress, setCurrentProgress] = useState(null); // active user_mission_progress (+ mission join)
-  const [member, setMember] = useState(null); // project_members (pass_used_cnt 등)
+  const [member, setMember] = useState(null); // project_members (status/pass_used_cnt 등)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -50,6 +50,10 @@ export function MissionProvider({ children }) {
     }
     setLoading(true);
     setError(null);
+
+    // 아직 참여 신청(project_members)이 없으면 pending 상태로 자동 신청
+    // (있으면 그대로 두고, 승인 여부는 admin이 별도로 처리)
+    await supabase.rpc('join_project', { p_project_id: currentProjectId });
 
     const [{ data: progressRows }, { data: memberRow }] = await Promise.all([
       supabase
@@ -135,6 +139,8 @@ export function MissionProvider({ children }) {
   };
 
   const remainingPass = currentProject && member ? currentProject.pass_cnt - member.pass_used_cnt : 0;
+  const memberStatus = member?.status || null; // 'pending' | 'approved' | 'rejected' | null(아직 신청 전)
+  const isApproved = memberStatus === 'approved';
 
   return (
     <MissionContext.Provider
@@ -145,6 +151,8 @@ export function MissionProvider({ children }) {
         selectProject,
         currentProgress,
         member,
+        memberStatus,
+        isApproved,
         remainingPass,
         loading,
         error,

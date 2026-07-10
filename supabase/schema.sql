@@ -86,6 +86,9 @@ create table if not exists project_members (
   project_id uuid not null references projects (id) on delete cascade,
   user_id uuid not null references profiles (id) on delete cascade,
   pass_used_cnt int not null default 0,        -- 지금까지 사용한 미션패스 횟수
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'rejected')), -- 관리자 승인 상태
+  approved_at timestamptz,
   joined_at timestamptz not null default now(),
   unique (project_id, user_id)
 );
@@ -182,10 +185,19 @@ begin
     raise exception '진행 기간이 아닙니다.';
   end if;
 
-  -- 참여자 등록 (없으면 생성)
-  insert into project_members (project_id, user_id)
-  values (p_project_id, v_user_id)
-  on conflict (project_id, user_id) do nothing;
+  -- 참여 승인 여부 확인 (join_project로 신청 후 admin이 승인해야 뽑기 가능)
+  declare
+    v_member project_members;
+  begin
+    select * into v_member from project_members
+    where project_id = p_project_id and user_id = v_user_id;
+    if v_member is null or v_member.status = 'pending' then
+      raise exception '관리자 승인 후 미션을 뽑을 수 있습니다.';
+    end if;
+    if v_member.status = 'rejected' then
+      raise exception '참여가 승인되지 않았습니다.';
+    end if;
+  end;
 
   -- 현재 활성 미션이 있는지 확인 (만료 안 됨)
   select count(*) into v_active_count
@@ -320,6 +332,7 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_project projects;
+  v_member project_members;
   v_active_count int;
   v_drawn_count int;
   v_mission missions;
@@ -340,9 +353,14 @@ begin
     raise exception '진행 기간이 아닙니다.';
   end if;
 
-  insert into project_members (project_id, user_id)
-  values (p_project_id, v_user_id)
-  on conflict (project_id, user_id) do nothing;
+  select * into v_member from project_members
+  where project_id = p_project_id and user_id = v_user_id;
+  if v_member is null or v_member.status = 'pending' then
+    raise exception '관리자 승인 후 미션을 뽑을 수 있습니다.';
+  end if;
+  if v_member.status = 'rejected' then
+    raise exception '참여가 승인되지 않았습니다.';
+  end if;
 
   select count(*) into v_active_count
   from user_mission_progress
@@ -383,6 +401,71 @@ begin
   insert into user_mission_progress (project_id, user_id, mission_id, status, assigned_at, expires_at)
   values (p_project_id, v_user_id, v_mission.id, 'active', now(), now() + make_interval(secs => v_project.interval_seconds))
   returning * into v_result;
+
+  return v_result;
+end;
+$$;
+
+-- =====================================================================
+-- 8-2. RPC: join_project / approve_member - 참가자 승인 플로우
+--    - join_project: 유저가 기수에 "참여 신청"(pending 멤버십 생성)
+--    - approve_member: admin이 신청자를 승인(approved)/거절(rejected)
+--    - draw_mission* RPC들은 status='approved'인 참가자만 통과시킴
+-- =====================================================================
+create or replace function join_project(p_project_id uuid)
+returns project_members
+language plpgsql
+security definer
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_project projects;
+  v_result project_members;
+begin
+  if v_user_id is null then
+    raise exception '로그인이 필요합니다.';
+  end if;
+
+  select * into v_project from projects where id = p_project_id;
+  if v_project is null then
+    raise exception '존재하지 않는 프로젝트입니다.';
+  end if;
+
+  insert into project_members (project_id, user_id, status)
+  values (p_project_id, v_user_id, 'pending')
+  on conflict (project_id, user_id) do nothing;
+
+  select * into v_result from project_members
+  where project_id = p_project_id and user_id = v_user_id;
+
+  return v_result;
+end;
+$$;
+
+create or replace function approve_member(p_member_id uuid, p_status text)
+returns project_members
+language plpgsql
+security definer
+as $$
+declare
+  v_result project_members;
+begin
+  if not is_admin() then
+    raise exception '권한이 없습니다.';
+  end if;
+  if p_status not in ('approved', 'rejected', 'pending') then
+    raise exception '잘못된 상태값입니다.';
+  end if;
+
+  update project_members
+  set status = p_status,
+      approved_at = case when p_status = 'approved' then now() else approved_at end
+  where id = p_member_id
+  returning * into v_result;
+
+  if v_result is null then
+    raise exception '존재하지 않는 참가자입니다.';
+  end if;
 
   return v_result;
 end;

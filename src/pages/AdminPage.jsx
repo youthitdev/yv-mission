@@ -411,11 +411,30 @@ const STATUS_LABEL = {
   expired: '기간만료',
 };
 
+const MEMBER_STATUS_LABEL = {
+  pending: '승인 대기',
+  approved: '승인됨',
+  rejected: '거절됨',
+};
+const MEMBER_STATUS_STYLE = {
+  pending: 'bg-yellow-500/20 text-yellow-300',
+  approved: 'bg-green-500/20 text-green-300',
+  rejected: 'bg-red-500/20 text-red-300',
+};
+const MEMBER_FILTERS = [
+  { code: 'all', label: '전체' },
+  { code: 'pending', label: '승인 대기' },
+  { code: 'approved', label: '승인됨' },
+  { code: 'rejected', label: '거절됨' },
+];
+
 function ParticipantsAdmin({ project }) {
   const [members, setMembers] = useState([]);
   const [progressByUser, setProgressByUser] = useState({});
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [approvingId, setApprovingId] = useState(null);
+  const [filter, setFilter] = useState('all');
 
   const load = () => {
     setLoading(true);
@@ -461,33 +480,104 @@ function ParticipantsAdmin({ project }) {
     load();
   };
 
+  const handleApprove = async (member, status) => {
+    setApprovingId(member.id);
+    const { error } = await supabase.rpc('approve_member', {
+      p_member_id: member.id,
+      p_status: status,
+    });
+    setApprovingId(null);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    load();
+  };
+
   if (loading) return <p className="px-4 text-white/50 text-sm">불러오는 중...</p>;
+
+  const filteredMembers = filter === 'all' ? members : members.filter((m) => m.status === filter);
+  const pendingCount = members.filter((m) => m.status === 'pending').length;
 
   return (
     <div className="px-4 flex flex-col gap-4">
       <p className="text-sm text-white/50">
         {project.name} · 참여자 {members.length}명
+        {pendingCount > 0 ? ` · 승인 대기 ${pendingCount}명` : ''}
       </p>
 
-      {members.length === 0 && (
-        <p className="text-white/50 text-sm">아직 참여한 사람이 없습니다.</p>
+      <div className="flex gap-2 overflow-x-auto">
+        {MEMBER_FILTERS.map((f) => (
+          <button
+            key={f.code}
+            onClick={() => setFilter(f.code)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs ${
+              filter === f.code ? 'bg-mission-accent text-black' : 'bg-mission-dark text-white/60'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {filteredMembers.length === 0 && (
+        <p className="text-white/50 text-sm">해당하는 참여자가 없습니다.</p>
       )}
 
-      {members.map((m) => {
+      {filteredMembers.map((m) => {
         const missions = progressByUser[m.user_id] || [];
         return (
           <div key={m.id} className="bg-mission-card rounded-xl p-4 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="font-semibold">{m.profile?.nickname || '이름없음'}</p>
-                <p className="text-xs text-white/50">
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold">{m.profile?.nickname || '이름없음'}</p>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full ${
+                      MEMBER_STATUS_STYLE[m.status] || 'bg-white/10 text-white/60'
+                    }`}
+                  >
+                    {MEMBER_STATUS_LABEL[m.status] || m.status}
+                  </span>
+                </div>
+                <p className="text-xs text-white/50 mt-1">
                   참여일 {new Date(m.joined_at).toLocaleDateString('ko-KR')} · 미션패스 사용{' '}
                   {m.pass_used_cnt}/{project.pass_cnt}
                 </p>
               </div>
-              <span className="text-xs text-white/50">
+              <span className="text-xs text-white/50 shrink-0">
                 {missions.length}/{project.max_mission}개 진행
               </span>
+            </div>
+
+            <div className="flex gap-2">
+              {m.status !== 'approved' && (
+                <button
+                  onClick={() => handleApprove(m, 'approved')}
+                  disabled={approvingId === m.id}
+                  className="flex-1 py-1.5 rounded-lg bg-mission-accent text-black text-xs font-semibold disabled:opacity-40"
+                >
+                  승인
+                </button>
+              )}
+              {m.status !== 'rejected' && (
+                <button
+                  onClick={() => handleApprove(m, 'rejected')}
+                  disabled={approvingId === m.id}
+                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-xs disabled:opacity-40"
+                >
+                  거절
+                </button>
+              )}
+              {m.status !== 'pending' && (
+                <button
+                  onClick={() => handleApprove(m, 'pending')}
+                  disabled={approvingId === m.id}
+                  className="flex-1 py-1.5 rounded-lg bg-white/10 text-xs disabled:opacity-40"
+                >
+                  대기로 되돌리기
+                </button>
+              )}
             </div>
 
             {missions.length > 0 && (
