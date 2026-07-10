@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { formatRemaining, msUntil } from '../utils/time';
 
 export default function HomePage() {
-  const { currentProject, currentProgress, remainingPass, usePass, completeMission, error } = useMission();
+  const { currentProject, currentProgress, remainingPass, usePass, completeMission, error, reload } = useMission();
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
@@ -36,7 +36,7 @@ export default function HomePage() {
       ) : (
         <div className="flex flex-col gap-4">
           <div className="px-4">
-            <CountdownBar expiresAt={currentProgress?.expires_at} nickname={profile?.nickname} />
+            <CountdownBar expiresAt={currentProgress?.expires_at} nickname={profile?.nickname} onExpire={reload} />
           </div>
 
           <MissionGrid

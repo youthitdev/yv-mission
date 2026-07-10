@@ -1,16 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatRemaining, msUntil } from '../utils/time';
 
-export default function CountdownBar({ expiresAt, nickname }) {
+export default function CountdownBar({ expiresAt, nickname, onExpire }) {
   const [remaining, setRemaining] = useState(() => (expiresAt ? msUntil(expiresAt) : 0));
+  const firedRef = useRef(false);
   const name = nickname || '나';
 
   useEffect(() => {
+    firedRef.current = false;
     if (!expiresAt) return;
     setRemaining(msUntil(expiresAt));
-    const id = setInterval(() => setRemaining(msUntil(expiresAt)), 1000);
+    const id = setInterval(() => {
+      const ms = msUntil(expiresAt);
+      setRemaining(ms);
+      if (ms <= 0 && !firedRef.current) {
+        firedRef.current = true;
+        onExpire?.();
+      }
+    }, 1000);
     return () => clearInterval(id);
-  }, [expiresAt]);
+  }, [expiresAt, onExpire]);
 
   if (!expiresAt) {
     return (
