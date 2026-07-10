@@ -610,7 +610,7 @@ function ParticipantsAdmin({ project }) {
         {filteredMembers.map((m) => {
           const missions = progressByUser[m.user_id] || [];
           return (
-            <div key={m.id} className="bg-mission-card rounded-xl p-4 flex flex-col gap-3">
+            <div key={m.id} className="bg-mission-card rounded-xl p-4 flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2">
@@ -628,35 +628,40 @@ function ParticipantsAdmin({ project }) {
                     {m.pass_used_cnt}/{project.pass_cnt}
                   </p>
                 </div>
-                <span className="text-xs text-white/50 shrink-0">
-                  {missions.length}/{project.max_mission}개 진행
-                </span>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-white/50">
+                    {missions.length}/{project.max_mission}개 진행
+                  </span>
+                  {m.status !== 'approved' && (
+                    <button
+                      onClick={() => handleApprove(m, 'approved')}
+                      disabled={approvingId === m.id}
+                      title="승인"
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-mission-accent/20 text-sm disabled:opacity-40"
+                    >
+                      ✅
+                    </button>
+                  )}
+                  {m.status !== 'rejected' && (
+                    <button
+                      onClick={() => handleApprove(m, 'rejected')}
+                      disabled={approvingId === m.id}
+                      title="거절"
+                      className="w-7 h-7 flex items-center justify-center rounded-full bg-red-500/20 text-sm disabled:opacity-40"
+                    >
+                      ❌
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="flex gap-2 flex-wrap">
-                {m.status !== 'approved' && (
-                  <button
-                    onClick={() => handleApprove(m, 'approved')}
-                    disabled={approvingId === m.id}
-                    className="flex-1 py-1.5 rounded-lg bg-mission-accent text-black text-xs font-semibold disabled:opacity-40"
-                  >
-                    승인
-                  </button>
-                )}
-                {m.status !== 'rejected' && (
-                  <button
-                    onClick={() => handleApprove(m, 'rejected')}
-                    disabled={approvingId === m.id}
-                    className="flex-1 py-1.5 rounded-lg bg-white/10 text-xs disabled:opacity-40"
-                  >
-                    거절
-                  </button>
-                )}
+              <div className="flex gap-3 text-xs">
                 {m.status !== 'pending' && (
                   <button
                     onClick={() => handleApprove(m, 'pending')}
                     disabled={approvingId === m.id}
-                    className="flex-1 py-1.5 rounded-lg bg-white/10 text-xs disabled:opacity-40"
+                    className="text-white/50 underline disabled:opacity-40"
                   >
                     대기로 되돌리기
                   </button>
@@ -664,7 +669,7 @@ function ParticipantsAdmin({ project }) {
                 <button
                   onClick={() => handleRemove(m)}
                   disabled={removingId === m.id}
-                  className="flex-1 py-1.5 rounded-lg bg-red-500/20 text-red-300 text-xs disabled:opacity-40"
+                  className="text-red-400 underline disabled:opacity-40"
                 >
                   참가자 제거
                 </button>
